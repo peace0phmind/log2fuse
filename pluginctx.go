@@ -83,20 +83,7 @@ func (w *LoggerLogWriter) Write(log string) error {
 }
 
 func createHTTPLogger(ctx context.Context, config *Config, logger *log.Logger) HTTPLogger {
-	switch config.LogFormat {
-	case JSONFormat:
-		return createJSONHTTPLogger(ctx, config, logger)
-	default:
-		return createTextualHTTPLogger(ctx, logger)
-	}
-}
-
-func createTextualHTTPLogger(ctx context.Context, logger *log.Logger) *TextualHTTPLogger {
-	externalLogWriter, hasExternalLogWriter := ctx.Value(LogWriterContextKey).(LogWriter)
-	if hasExternalLogWriter {
-		return &TextualHTTPLogger{logger: logger, writer: externalLogWriter}
-	}
-	return &TextualHTTPLogger{logger: logger, writer: &LoggerLogWriter{logger: logger}}
+	return createJSONHTTPLogger(ctx, config, logger)
 }
 
 func createJSONHTTPLogger(ctx context.Context, config *Config, logger *log.Logger) *JSONHTTPLogger {

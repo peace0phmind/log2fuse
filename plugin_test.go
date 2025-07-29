@@ -140,46 +140,37 @@ func gzipAlwaysFive(rw http.ResponseWriter, req *http.Request) {
 }
 
 func TestPost(t *testing.T) {
-	expectedLogs := map[log2fuse.LogFormat]string{
-		log2fuse.TextFormat: "127.0.0.1 POST /post: 200 OK HTTP/1.1\n\nRequest Headers:\nAccept: text/plain\nAuthorization: Bearer {\"alg\":\"HS256\",\"typ\":\"JWT\"}.{\"sub\":\"1234567890\",\"name\":\"John Doe\",\"iat\":1516239022}\n\nRequest Body:\n5\n\nResponse Headers:\nContent-Type: text/plain\n\nResponse Content Length: 2\n\nDuration: 0.000 ms\n\nResponse Body:\n10\n\n",
-		log2fuse.JSONFormat: "{\"log.level\":\"info\",\"@timestamp\":\"2020-12-15T13:30:40.999Z\",\"message\":\"POST /post HTTP/1.1 200\",\"systemName\":\"HTTP\",\"remoteAddress\":\"127.0.0.1\",\"method\":\"POST\",\"path\":\"/post\",\"status\":200,\"statusText\":\"OK\",\"proto\":\"HTTP/1.1\",\"durationMs\":0,\"requestHeaders\":{\"Accept\":[\"text/plain\"],\"Authorization\":[\"Bearer {\\\"alg\\\":\\\"HS256\\\",\\\"typ\\\":\\\"JWT\\\"}.{\\\"sub\\\":\\\"1234567890\\\",\\\"name\\\":\\\"John Doe\\\",\\\"iat\\\":1516239022}\"]},\"requestBody\":\"5\",\"responseHeaders\":{\"Content-Type\":[\"text/plain\"]},\"responseContentLength\":2,\"responseBody\":\"10\",\"ecs.version\":\"1.6.0\",\"logId\":\"test-id\"}\n",
+	expectedLog := "{\"log.level\":\"info\",\"@timestamp\":\"2020-12-15T13:30:40.999Z\",\"message\":\"POST /post HTTP/1.1 200\",\"systemName\":\"HTTP\",\"remoteAddress\":\"127.0.0.1\",\"method\":\"POST\",\"path\":\"/post\",\"status\":200,\"statusText\":\"OK\",\"proto\":\"HTTP/1.1\",\"durationMs\":0,\"requestHeaders\":{\"Accept\":[\"text/plain\"],\"Authorization\":[\"Bearer {\\\"alg\\\":\\\"HS256\\\",\\\"typ\\\":\\\"JWT\\\"}.{\\\"sub\\\":\\\"1234567890\\\",\\\"name\\\":\\\"John Doe\\\",\\\"iat\\\":1516239022}\"]},\"requestBody\":\"5\",\"responseHeaders\":{\"Content-Type\":[\"text/plain\"]},\"responseContentLength\":2,\"responseBody\":\"10\",\"ecs.version\":\"1.6.0\",\"logId\":\"test-id\"}\n"
+
+	cfg := log2fuse.CreateConfig()
+	cfg.JWTHeaders = []string{"Authorization"}
+
+	ctx := createContext(t, expectedLog)
+
+	handler, err := log2fuse.New(ctx, http.HandlerFunc(doubleTheNumber), cfg, "logger-plugin")
+	if err != nil {
+		t.Fatal(err)
 	}
 
-	for logFormat, expectedLog := range expectedLogs {
-		cfg := log2fuse.CreateConfig()
-		cfg.LogFormat = logFormat
-		cfg.JWTHeaders = []string{"Authorization"}
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, "/post", strings.NewReader("5"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	req.RemoteAddr = "127.0.0.1"
+	req.Header.Set("Accept", "text/plain")
+	req.Header.Set("Authorization", "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiaWF0IjoxNTE2MjM5MDIyfQ.SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c")
 
-		ctx := createContext(t, expectedLog)
+	recorder := httptest.NewRecorder()
+	handler.ServeHTTP(recorder, req)
 
-		handler, err := log2fuse.New(ctx, http.HandlerFunc(doubleTheNumber), cfg, "logger-plugin")
-		if err != nil {
-			t.Fatal(err)
-		}
-
-		req, err := http.NewRequestWithContext(ctx, http.MethodPost, "/post", strings.NewReader("5"))
-		if err != nil {
-			t.Fatal(err)
-		}
-		req.RemoteAddr = "127.0.0.1"
-		req.Header.Set("Accept", "text/plain")
-		req.Header.Set("Authorization", "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiaWF0IjoxNTE2MjM5MDIyfQ.SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c")
-
-		recorder := httptest.NewRecorder()
-		handler.ServeHTTP(recorder, req)
-
-		// Check the response body
-		if recorder.Body.String() != "10" {
-			t.Errorf("Expected response body: '10', got: '%s'", recorder.Body.String())
-		}
+	// Check the response body
+	if recorder.Body.String() != "10" {
+		t.Errorf("Expected response body: '10', got: '%s'", recorder.Body.String())
 	}
 }
 
 func TestShortPost(t *testing.T) {
-	expectedLogs := map[log2fuse.LogFormat]string{
-		log2fuse.TextFormat: "127.0.0.1 POST /short-post: 200 OK HTTP/1.1\n\nRequest Headers:\nAccept: text/plain\nAuthorization: ██\n\nResponse Headers:\nContent-Type: text/plain\n\nResponse Content Length: 2\n\nDuration: 0.000 ms\n\n",
-		log2fuse.JSONFormat: "{\"log.level\":\"info\",\"@timestamp\":\"2020-12-15T13:30:40.999Z\",\"message\":\"POST /short-post HTTP/1.1 200\",\"systemName\":\"HTTP\",\"remoteAddress\":\"127.0.0.1\",\"method\":\"POST\",\"path\":\"/short-post\",\"status\":200,\"statusText\":\"OK\",\"proto\":\"HTTP/1.1\",\"durationMs\":0,\"requestHeaders\":{\"Accept\":[\"text/plain\"],\"Authorization\":[\"██\"]},\"responseHeaders\":{\"Content-Type\":[\"text/plain\"]},\"responseContentLength\":2,\"ecs.version\":\"1.6.0\",\"logId\":\"test-id\"}\n",
-	}
+	expectedLog := "{\"log.level\":\"info\",\"@timestamp\":\"2020-12-15T13:30:40.999Z\",\"message\":\"POST /short-post HTTP/1.1 200\",\"systemName\":\"HTTP\",\"remoteAddress\":\"127.0.0.1\",\"method\":\"POST\",\"path\":\"/short-post\",\"status\":200,\"statusText\":\"OK\",\"proto\":\"HTTP/1.1\",\"durationMs\":0,\"requestHeaders\":{\"Accept\":[\"text/plain\"],\"Authorization\":[\"██\"]},\"responseHeaders\":{\"Content-Type\":[\"text/plain\"]},\"responseContentLength\":2,\"ecs.version\":\"1.6.0\",\"logId\":\"test-id\"}\n"
 
 	cfgWithInterestedContentTypes := log2fuse.CreateConfig()
 	cfgWithInterestedContentTypes.HeaderRedacts = []string{"Authorization"}
@@ -193,31 +184,27 @@ func TestShortPost(t *testing.T) {
 	configs := []*log2fuse.Config{cfgWithInterestedContentTypes, cfgWithBodyRedact}
 
 	for _, cfg := range configs {
-		for logFormat, expectedLog := range expectedLogs {
-			cfg.LogFormat = logFormat
+		ctx := createContext(t, expectedLog)
 
-			ctx := createContext(t, expectedLog)
+		handler, err := log2fuse.New(ctx, http.HandlerFunc(doubleTheNumber), cfg, "logger-plugin")
+		if err != nil {
+			t.Fatal(err)
+		}
 
-			handler, err := log2fuse.New(ctx, http.HandlerFunc(doubleTheNumber), cfg, "logger-plugin")
-			if err != nil {
-				t.Fatal(err)
-			}
+		req, err := http.NewRequestWithContext(ctx, http.MethodPost, "/short-post", strings.NewReader("5"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		req.RemoteAddr = "127.0.0.1"
+		req.Header.Set("Accept", "text/plain")
+		req.Header.Set("Authorization", "secret")
 
-			req, err := http.NewRequestWithContext(ctx, http.MethodPost, "/short-post", strings.NewReader("5"))
-			if err != nil {
-				t.Fatal(err)
-			}
-			req.RemoteAddr = "127.0.0.1"
-			req.Header.Set("Accept", "text/plain")
-			req.Header.Set("Authorization", "secret")
+		recorder := httptest.NewRecorder()
+		handler.ServeHTTP(recorder, req)
 
-			recorder := httptest.NewRecorder()
-			handler.ServeHTTP(recorder, req)
-
-			// Check the response body
-			if recorder.Body.String() != "10" {
-				t.Errorf("Expected response body: '10', got: '%s'", recorder.Body.String())
-			}
+		// Check the response body
+		if recorder.Body.String() != "10" {
+			t.Errorf("Expected response body: '10', got: '%s'", recorder.Body.String())
 		}
 	}
 }
@@ -225,7 +212,7 @@ func TestShortPost(t *testing.T) {
 func TestEmptyPost(t *testing.T) {
 	cfg := log2fuse.CreateConfig()
 
-	ctx := createContext(t, "127.0.0.1 POST /empty-post: 200 OK HTTP/1.1\n\nRequest Body:\n5\n\nResponse Content Length: 0\n\nDuration: 0.000 ms\n\n")
+	ctx := createContext(t, "{\"log.level\":\"info\",\"@timestamp\":\"2020-12-15T13:30:40.999Z\",\"message\":\"POST /empty-post HTTP/1.1 200\",\"systemName\":\"HTTP\",\"remoteAddress\":\"127.0.0.1\",\"method\":\"POST\",\"path\":\"/empty-post\",\"status\":200,\"statusText\":\"OK\",\"proto\":\"HTTP/1.1\",\"durationMs\":0,\"requestBody\":\"5\",\"responseContentLength\":0,\"ecs.version\":\"1.6.0\",\"logId\":\"test-id\"}\n")
 
 	handler, err := log2fuse.New(ctx, http.HandlerFunc(blackHole), cfg, "logger-plugin")
 	if err != nil {
@@ -250,7 +237,7 @@ func TestEmptyPost(t *testing.T) {
 func TestGet(t *testing.T) {
 	cfg := log2fuse.CreateConfig()
 
-	ctx := createContext(t, "127.0.0.1 GET /get: 200 OK HTTP/1.1\n\nRequest Headers:\nAccept: text/plain\n\nResponse Content Length: 1\n\nDuration: 0.000 ms\n\nResponse Body:\n5\n\n")
+	ctx := createContext(t, "{\"log.level\":\"info\",\"@timestamp\":\"2020-12-15T13:30:40.999Z\",\"message\":\"GET /get HTTP/1.1 200\",\"systemName\":\"HTTP\",\"remoteAddress\":\"127.0.0.1\",\"method\":\"GET\",\"path\":\"/get\",\"status\":200,\"statusText\":\"OK\",\"proto\":\"HTTP/1.1\",\"durationMs\":0,\"requestHeaders\":{\"Accept\":[\"text/plain\"]},\"responseContentLength\":1,\"responseBody\":\"5\",\"ecs.version\":\"1.6.0\",\"logId\":\"test-id\"}\n")
 
 	handler, err := log2fuse.New(ctx, http.HandlerFunc(alwaysFive), cfg, "logger-plugin")
 	if err != nil {
@@ -276,7 +263,7 @@ func TestGet(t *testing.T) {
 func TestPostGzipResponseWithRawRequest(t *testing.T) {
 	cfg := log2fuse.CreateConfig()
 
-	ctx := createContext(t, "127.0.0.1 POST /post: 200 OK HTTP/1.1\n\nRequest Headers:\nAccept: text/plain\n\nRequest Body:\nHello\n\nResponse Headers:\nContent-Encoding: gzip\n\nResponse Content Length: 25\n\nDuration: 0.000 ms\n\nResponse Body:\n5\n\n")
+	ctx := createContext(t, "{\"log.level\":\"info\",\"@timestamp\":\"2020-12-15T13:30:40.999Z\",\"message\":\"POST /post HTTP/1.1 200\",\"systemName\":\"HTTP\",\"remoteAddress\":\"127.0.0.1\",\"method\":\"POST\",\"path\":\"/post\",\"status\":200,\"statusText\":\"OK\",\"proto\":\"HTTP/1.1\",\"durationMs\":0,\"requestHeaders\":{\"Accept\":[\"text/plain\"]},\"requestBody\":\"Hello\",\"responseHeaders\":{\"Content-Encoding\":[\"gzip\"]},\"responseContentLength\":25,\"responseBody\":\"5\",\"ecs.version\":\"1.6.0\",\"logId\":\"test-id\"}\n")
 
 	handler, err := log2fuse.New(ctx, http.HandlerFunc(gzipAlwaysFive), cfg, "logger-plugin")
 	if err != nil {
@@ -299,7 +286,7 @@ func TestGetWithoutHeaders(t *testing.T) {
 	cfg := log2fuse.CreateConfig()
 	cfg.SilentHeaders = true
 
-	ctx := createContext(t, "127.0.0.1 GET /get: 200 OK HTTP/1.1\n\nResponse Content Length: 1\n\nDuration: 0.000 ms\n\nResponse Body:\n5\n\n")
+	ctx := createContext(t, "{\"log.level\":\"info\",\"@timestamp\":\"2020-12-15T13:30:40.999Z\",\"message\":\"GET /get HTTP/1.1 200\",\"systemName\":\"HTTP\",\"remoteAddress\":\"127.0.0.1\",\"method\":\"GET\",\"path\":\"/get\",\"status\":200,\"statusText\":\"OK\",\"proto\":\"HTTP/1.1\",\"durationMs\":0,\"responseContentLength\":1,\"responseBody\":\"5\",\"ecs.version\":\"1.6.0\",\"logId\":\"test-id\"}\n")
 
 	handler, err := log2fuse.New(ctx, http.HandlerFunc(alwaysFive), cfg, "logger-plugin")
 	if err != nil {
@@ -326,7 +313,6 @@ func TestGetWithoutLogID(t *testing.T) {
 	ctx := createContext(t, "{\"log.level\":\"info\",\"@timestamp\":\"2020-12-15T13:30:40.999Z\",\"message\":\"GET /get-without-log-id HTTP/1.1 200\",\"systemName\":\"HTTP\",\"remoteAddress\":\"127.0.0.1\",\"method\":\"GET\",\"path\":\"/get-without-log-id\",\"status\":200,\"statusText\":\"OK\",\"proto\":\"HTTP/1.1\",\"durationMs\":0,\"responseContentLength\":1,\"responseBody\":\"5\",\"ecs.version\":\"1.6.0\"}\n")
 
 	cfg := log2fuse.CreateConfig()
-	cfg.LogFormat = log2fuse.JSONFormat
 	cfg.GenerateLogID = false
 
 	handler, err := log2fuse.New(ctx, http.HandlerFunc(alwaysFive), cfg, "logger-plugin")
@@ -352,7 +338,7 @@ func TestGetWithoutLogID(t *testing.T) {
 func TestGetError(t *testing.T) {
 	cfg := log2fuse.CreateConfig()
 
-	ctx := createContext(t, "127.0.0.1 GET /get-error: 500 Internal Server Error HTTP/1.1\n\nResponse Headers:\nContent-Type: text/plain; charset=utf-8\nX-Content-Type-Options: nosniff\n\nResponse Content Length: 22\n\nDuration: 0.000 ms\n\nResponse Body:\nInternal Server Error\n\n\n")
+	ctx := createContext(t, "{\"log.level\":\"info\",\"@timestamp\":\"2020-12-15T13:30:40.999Z\",\"message\":\"GET /get-error HTTP/1.1 500\",\"systemName\":\"HTTP\",\"remoteAddress\":\"127.0.0.1\",\"method\":\"GET\",\"path\":\"/get-error\",\"status\":500,\"statusText\":\"Internal Server Error\",\"proto\":\"HTTP/1.1\",\"durationMs\":0,\"responseHeaders\":{\"Content-Type\":[\"text/plain; charset=utf-8\"],\"X-Content-Type-Options\":[\"nosniff\"]},\"responseContentLength\":22,\"responseBody\":\"Internal Server Error\\n\",\"ecs.version\":\"1.6.0\",\"logId\":\"test-id\"}\n")
 
 	handler, err := log2fuse.New(ctx, http.HandlerFunc(alwaysError), cfg, "logger-plugin")
 	if err != nil {
@@ -403,7 +389,7 @@ func TestGetWebsocket(t *testing.T) {
 func TestEmptyGet(t *testing.T) {
 	cfg := log2fuse.CreateConfig()
 
-	ctx := createContext(t, "127.0.0.1 GET /empty-get: 200 OK HTTP/1.1\n\nResponse Content Length: 0\n\nDuration: 0.000 ms\n\n")
+	ctx := createContext(t, "{\"log.level\":\"info\",\"@timestamp\":\"2020-12-15T13:30:40.999Z\",\"message\":\"GET /empty-get HTTP/1.1 200\",\"systemName\":\"HTTP\",\"remoteAddress\":\"127.0.0.1\",\"method\":\"GET\",\"path\":\"/empty-get\",\"status\":200,\"statusText\":\"OK\",\"proto\":\"HTTP/1.1\",\"durationMs\":0,\"responseContentLength\":0,\"ecs.version\":\"1.6.0\",\"logId\":\"test-id\"}\n")
 	next := http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
 		rw.WriteHeader(http.StatusOK)
 	})

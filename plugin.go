@@ -16,29 +16,18 @@ import (
 
 // Config the plugin configuration.
 type Config struct {
-	Enabled            bool      `json:"enabled"`
-	Debug              bool      `json:"debug"`
-	LogFormat          LogFormat `json:"logFormat"`
-	GenerateLogID      bool      `json:"generateLogId,omitempty"`
-	Name               string    `json:"name,omitempty"`
-	AcceptAny          bool      `json:"acceptAny,omitempty"`
-	SilentHeaders      bool      `json:"silentHeaders,omitempty"`
-	BodyContentTypes   []string  `json:"bodyContentTypes,omitempty"`
-	JWTHeaders         []string  `json:"jwtHeaders,omitempty"`
-	HeaderRedacts      []string  `json:"headerRedacts,omitempty"`
-	RequestBodyRedact  string    `json:"requestBodyRedact,omitempty"`
-	ResponseBodyRedact string    `json:"responseBodyRedact,omitempty"`
+	Enabled            bool     `json:"enabled"`
+	Debug              bool     `json:"debug"`
+	GenerateLogID      bool     `json:"generateLogId,omitempty"`
+	Name               string   `json:"name,omitempty"`
+	AcceptAny          bool     `json:"acceptAny,omitempty"`
+	SilentHeaders      bool     `json:"silentHeaders,omitempty"`
+	BodyContentTypes   []string `json:"bodyContentTypes,omitempty"`
+	JWTHeaders         []string `json:"jwtHeaders,omitempty"`
+	HeaderRedacts      []string `json:"headerRedacts,omitempty"`
+	RequestBodyRedact  string   `json:"requestBodyRedact,omitempty"`
+	ResponseBodyRedact string   `json:"responseBodyRedact,omitempty"`
 }
-
-// LogFormat specifies the log format.
-type LogFormat string
-
-const (
-	// TextFormat indicates text log format.
-	TextFormat LogFormat = "text"
-	// JSONFormat indicates JSON log format.
-	JSONFormat LogFormat = "json"
-)
 
 // NoOpMiddleware a no-op plugin implementation.
 type NoOpMiddleware struct {
@@ -94,7 +83,6 @@ func CreateConfig() *Config {
 	return &Config{
 		Enabled:            true,
 		Debug:              false,
-		LogFormat:          TextFormat,
 		GenerateLogID:      true,
 		Name:               "HTTP",
 		AcceptAny:          false,
