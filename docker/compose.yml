@@ -1,0 +1,96 @@
+name: traefik-logger-example
+
+services:
+
+  traefik:
+    image: traefik:3.0
+    restart: always
+    labels:
+      - "co.elastic.logs/enabled=true"
+      - "co.elastic.logs/json.keys_under_root=true"
+      - "co.elastic.logs/json.overwrite_keys=true"
+      - "co.elastic.logs/json.add_error_key=true"
+      - "co.elastic.logs/json.expand_keys=true"
+    ports:
+      - "127.0.0.1:8000:80/tcp" # HTTP/1 (cleartext)
+      - "127.0.0.1:8443:8443/tcp" # HTTP/2 and HTTP/1 (TLS)
+      - "127.0.0.1:8443:8443/udp" # HTTP/3
+      - "127.0.0.1:8001:8080/tcp" # Traefik dashboard HTTP/1
+    networks:
+      - traefik
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ./traefik.yaml:/traefik.yaml:ro
+      - ./traefik:/traefik:ro
+      - ./cert:/cert:ro
+
+  nginx:
+    image: nginx:latest
+    restart: always
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.nginx.rule=PathPrefix(`/example`)"
+      - "traefik.http.services.nginx.loadbalancer.server.port=80"
+      - "traefik.http.middlewares.nginx-logger.plugin.log2fuse.Enabled=true"
+      - "traefik.http.middlewares.nginx-logger.plugin.log2fuse.Name=nginx"
+      - "traefik.http.middlewares.nginx-logger.plugin.log2fuse.LogFormat=json" # remove this line to use text format
+      - "traefik.http.middlewares.nginx-cors.headers.accesscontrolallowmethods=GET,OPTIONS"
+      - "traefik.http.middlewares.nginx-cors.headers.accesscontrolallowheaders=*"
+      - "traefik.http.middlewares.nginx-cors.headers.accesscontrolalloworiginlist=*"
+      - "traefik.http.middlewares.nginx-cors.headers.accesscontrolmaxage=100"
+      - "traefik.http.middlewares.nginx-cors.headers.addvaryheader=true"
+      - "traefik.http.routers.nginx.middlewares=secHeaders@file,nginx-cors@docker,nginx-logger@docker"
+    networks:
+      - traefik
+
+  filebeat:
+    labels:
+      co.elastic.logs/enabled: false
+    user: root
+    image: docker.elastic.co/beats/filebeat:7.14.0
+    command: filebeat -e -strict.perms=false
+    volumes:
+      - ./filebeat.docker.yml:/usr/share/filebeat/filebeat.yml
+      - /var/lib/docker/containers:/var/lib/docker/containers:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+
+  elasticsearch:
+    labels:
+      co.elastic.logs/enabled: false
+    environment:
+      - discovery.type=single-node
+    image: docker.elastic.co/elasticsearch/elasticsearch:7.14.0
+    volumes:
+      - elasticsearch:/usr/share/elasticsearch/data
+    healthcheck:
+      test: [ "CMD", "curl", "-s", "-f", "http://localhost:9200/_cat/health" ]
+      interval: 3s
+      timeout: 3s
+      retries: 80
+    ports:
+      - "127.0.0.1:9200:9200"
+
+  kibana:
+    labels:
+      co.elastic.logs/enabled: false
+    image: docker.elastic.co/kibana/kibana:7.14.0
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+    healthcheck:
+      test: [ "CMD", "curl", "-s", "-f", "http://localhost:5601/api/status" ]
+      interval: 3s
+      timeout: 3s
+      retries: 80
+    ports:
+      - "127.0.0.1:5601:5601"
+
+networks:
+  traefik:
+  #external: true # on a real environment both service has separate compose file
+
+volumes:
+  elasticsearch: # use RAM if your disk has less than 5% free space
+    driver_opts:
+      type: tmpfs
+      device: tmpfs

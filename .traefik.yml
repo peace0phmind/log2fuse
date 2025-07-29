@@ -1,0 +1,11 @@
+displayName: HTTP Logger Plugin 2 Langfuse
+type: middleware
+iconPath: .assets/icon.png
+
+import: github.com/peace0phmind/log2fuse
+
+summary: 'Prints each HTTP request and response with body to Langfuse.'
+
+testData:
+  Enabled: true
+  Name: HTTP
