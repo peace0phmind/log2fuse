@@ -455,17 +455,6 @@ components:
                 type:
                   type: string
                   enum:
-                    - score-create
-            - $ref: '#/components/schemas/ScoreEvent'
-          required:
-            - type
-        - type: object
-          allOf:
-            - type: object
-              properties:
-                type:
-                  type: string
-                  enum:
                     - span-create
             - $ref: '#/components/schemas/CreateSpanEvent'
           required:
@@ -479,28 +468,6 @@ components:
                   enum:
                     - span-update
             - $ref: '#/components/schemas/UpdateSpanEvent'
-          required:
-            - type
-        - type: object
-          allOf:
-            - type: object
-              properties:
-                type:
-                  type: string
-                  enum:
-                    - generation-create
-            - $ref: '#/components/schemas/CreateGenerationEvent'
-          required:
-            - type
-        - type: object
-          allOf:
-            - type: object
-              properties:
-                type:
-                  type: string
-                  enum:
-                    - generation-update
-            - $ref: '#/components/schemas/UpdateGenerationEvent'
           required:
             - type
         - type: object
@@ -552,7 +519,6 @@ components:
       type: string
       enum:
         - SPAN
-        - GENERATION
         - EVENT
     IngestionUsage:
       title: IngestionUsage
