@@ -27,6 +27,8 @@ type Config struct {
 	HeaderRedacts      []string `json:"headerRedacts,omitempty"`
 	RequestBodyRedact  string   `json:"requestBodyRedact,omitempty"`
 	ResponseBodyRedact string   `json:"responseBodyRedact,omitempty"`
+	LangfusePublicKey  string   `json:"langfusePublicKey,omitempty"`
+	LangfuseSecretKey  string   `json:"langfuseSecretKey,omitempty"`
 }
 
 // NoOpMiddleware a no-op plugin implementation.
@@ -92,6 +94,8 @@ func CreateConfig() *Config {
 		HeaderRedacts:      []string{},
 		RequestBodyRedact:  "",
 		ResponseBodyRedact: "",
+		LangfusePublicKey:  "",
+		LangfuseSecretKey:  "",
 	}
 }
 
