@@ -1626,14 +1626,6 @@ components:
           type: string
       required:
         - message
-    Sort:
-      title: Sort
-      type: object
-      properties:
-        id:
-          type: string
-      required:
-        - id
     utilsMetaResponse:
       title: utilsMetaResponse
       type: object
@@ -1655,7 +1647,3 @@ components:
         - limit
         - totalItems
         - totalPages
-  securitySchemes:
-    BasicAuth:
-      type: http
-      scheme: basic
