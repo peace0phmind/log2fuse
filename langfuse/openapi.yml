@@ -347,12 +347,6 @@ components:
         output:
           nullable: true
           description: The output data of the observation
-        usage:
-          $ref: '#/components/schemas/Usage'
-          nullable: true
-          description: >-
-            (Deprecated. Use usageDetails and costDetails instead.) The usage
-            data of the observation
         level:
           $ref: '#/components/schemas/ObservationLevel'
           description: The level of the observation
@@ -368,15 +362,6 @@ components:
           type: string
           nullable: true
           description: The prompt ID associated with the observation
-        usageDetails:
-          type: object
-          additionalProperties:
-            type: integer
-          nullable: true
-          description: >-
-            The usage details of the observation. Key is the name of the usage
-            metric, value is the number of units consumed. The total key is the
-            sum of all (non-total) usage metrics or the total value ingested.
         costDetails:
           type: object
           additionalProperties:
@@ -520,11 +505,6 @@ components:
       enum:
         - SPAN
         - EVENT
-    IngestionUsage:
-      title: IngestionUsage
-      oneOf:
-        - $ref: '#/components/schemas/Usage'
-        - $ref: '#/components/schemas/OpenAIUsage'
     OptionalObservationBody:
       title: OptionalObservationBody
       type: object
@@ -618,9 +598,6 @@ components:
         usage:
           $ref: '#/components/schemas/IngestionUsage'
           nullable: true
-        usageDetails:
-          $ref: '#/components/schemas/UsageDetails'
-          nullable: true
         costDetails:
           type: object
           additionalProperties:
@@ -656,9 +633,6 @@ components:
           nullable: true
         promptName:
           type: string
-          nullable: true
-        usageDetails:
-          $ref: '#/components/schemas/UsageDetails'
           nullable: true
         costDetails:
           type: object
@@ -714,9 +688,6 @@ components:
         metadata:
           nullable: true
         output:
-          nullable: true
-        usage:
-          $ref: '#/components/schemas/Usage'
           nullable: true
         level:
           $ref: '#/components/schemas/ObservationLevel'
@@ -956,3 +927,7 @@ components:
         - limit
         - totalItems
         - totalPages
+  securitySchemes:
+    BasicAuth:
+      type: http
+      scheme: basic
