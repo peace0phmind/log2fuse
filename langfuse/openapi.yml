@@ -814,26 +814,6 @@ components:
         - body
       allOf:
         - $ref: '#/components/schemas/BaseEvent'
-    CreateGenerationEvent:
-      title: CreateGenerationEvent
-      type: object
-      properties:
-        body:
-          $ref: '#/components/schemas/CreateGenerationBody'
-      required:
-        - body
-      allOf:
-        - $ref: '#/components/schemas/BaseEvent'
-    UpdateGenerationEvent:
-      title: UpdateGenerationEvent
-      type: object
-      properties:
-        body:
-          $ref: '#/components/schemas/UpdateGenerationBody'
-      required:
-        - body
-      allOf:
-        - $ref: '#/components/schemas/BaseEvent'
     CreateSpanEvent:
       title: CreateSpanEvent
       type: object
@@ -906,27 +886,6 @@ components:
       required:
         - successes
         - errors
-    utilsMetaResponse:
-      title: utilsMetaResponse
-      type: object
-      properties:
-        page:
-          type: integer
-          description: current page number
-        limit:
-          type: integer
-          description: number of items per page
-        totalItems:
-          type: integer
-          description: number of total items given the current filters/selection (if any)
-        totalPages:
-          type: integer
-          description: number of total pages given the current limit
-      required:
-        - page
-        - limit
-        - totalItems
-        - totalPages
   securitySchemes:
     BasicAuth:
       type: http
