@@ -12,6 +12,7 @@ import (
 	"net/http"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/peace0phmind/log2fuse/langfuse"
 )
@@ -76,6 +77,8 @@ type LogRecord struct {
 	ResponseHeaders       http.Header
 	ResponseBody          *bytes.Buffer
 	ResponseContentLength int
+	StartTime             time.Time
+	EndTime               time.Time
 	DurationMs            float64
 	RequestBodyDecoder    HTTPBodyDecoder
 	ResponseBodyDecoder   HTTPBodyDecoder
@@ -220,6 +223,8 @@ func (m *LoggerMiddleware) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		ResponseHeaders:       responseHeaders,
 		ResponseBody:          responseBuffer,
 		ResponseContentLength: mrw.length,
+		StartTime:             startTime,
+		EndTime:               endTime,
 		DurationMs:            durationMs,
 		RequestBodyDecoder:    requestBodyDecoder,
 		ResponseBodyDecoder:   responseBodyDecoder,

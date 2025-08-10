@@ -28,37 +28,27 @@ func (jhl *LangfuseLogger) print(record *LogRecord) {
 	responseBodyText, _ := record.ResponseBodyDecoder.decode(record.ResponseBody)
 
 	// 生成 trace ID 和 span ID
+	sessionID := jhl.uuidGenerator.Generate()
 	traceID := jhl.uuidGenerator.Generate()
 	spanID := jhl.uuidGenerator.Generate()
-	timestamp := jhl.clock.Now().UTC().Format("2006-01-02T15:04:05.999Z07:00")
+	startTimestamp := record.StartTime.UTC().Format("2006-01-02T15:04:05.999Z07:00")
+	endTimestamp := record.EndTime.UTC().Format("2006-01-02T15:04:05.999Z07:00")
 
 	// 创建 trace 事件
 	traceBody := &langfuse.TraceBody{
 		ID:        traceID,
-		Timestamp: timestamp,
-		Name:      fmt.Sprintf("%s %s", record.Method, record.URL),
+		Timestamp: startTimestamp,
+		Name:      fmt.Sprintf("%s: %s %s", record.System, record.Method, record.URL),
 		Input: map[string]interface{}{
-			"method":     record.Method,
-			"url":        record.URL,
-			"proto":      record.Proto,
-			"remoteAddr": record.RemoteAddr,
-			"headers":    record.RequestHeaders,
-			"body":       requestBodyText,
+			"body": requestBodyText,
 		},
 		Output: map[string]interface{}{
-			"statusCode":            record.StatusCode,
-			"statusText":            http.StatusText(record.StatusCode),
-			"responseHeaders":       record.ResponseHeaders,
-			"responseBody":          responseBodyText,
-			"responseContentLength": record.ResponseContentLength,
-			"durationMs":            record.DurationMs,
+			"responseBody": responseBodyText,
 		},
-		Metadata: map[string]interface{}{
-			"system": record.System,
-		},
+		SessionID: sessionID,
 		Tags: []string{
 			"http",
-			"traefik",
+			record.System,
 			record.Method,
 			fmt.Sprintf("status_%d", record.StatusCode),
 		},
@@ -68,10 +58,10 @@ func (jhl *LangfuseLogger) print(record *LogRecord) {
 	spanBody := &langfuse.ObservationBody{
 		ID:        spanID,
 		TraceID:   traceID,
-		Type:      "span",
-		Name:      fmt.Sprintf("HTTP %s %s", record.Method, record.URL),
-		StartTime: timestamp,
-		EndTime:   timestamp,
+		Type:      langfuse.ObservationTypeSpan,
+		Name:      fmt.Sprintf("%s: %s %s", record.System, record.Method, record.URL),
+		StartTime: startTimestamp,
+		EndTime:   endTimestamp,
 		Input: map[string]interface{}{
 			"method":     record.Method,
 			"url":        record.URL,
@@ -88,15 +78,12 @@ func (jhl *LangfuseLogger) print(record *LogRecord) {
 			"responseContentLength": record.ResponseContentLength,
 			"durationMs":            record.DurationMs,
 		},
-		Metadata: map[string]interface{}{
-			"system": record.System,
-		},
-		Level: "DEFAULT",
+		Level: langfuse.ObservationLevelDefault,
 	}
 
 	// 创建 ingestion 事件
-	traceEvent := langfuse.CreateTraceEvent(traceID, timestamp, traceBody)
-	spanEvent := langfuse.CreateSpanEvent(spanID, timestamp, spanBody)
+	traceEvent := langfuse.CreateTraceEvent(traceID, startTimestamp, traceBody)
+	spanEvent := langfuse.CreateSpanEvent(spanID, startTimestamp, spanBody)
 
 	// 批量发送到 langfuse
 	ingestionReq := &langfuse.IngestionRequest{
