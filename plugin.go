@@ -34,6 +34,20 @@ type Config struct {
 	LangfuseSecretKey  string   `json:"langfuseSecretKey,omitempty"`
 }
 
+func (c *Config) GetLangfuseFromEnv() {
+	// If LangfuseHost, LangfusePublicKey, or LangfuseSecretKey are empty,
+	// try to get them from environment variables.
+	if c.LangfuseHost == "" {
+		c.LangfuseHost = os.Getenv("LANGFUSE_HOST")
+	}
+	if c.LangfusePublicKey == "" {
+		c.LangfusePublicKey = os.Getenv("LANGFUSE_PUBLIC_KEY")
+	}
+	if c.LangfuseSecretKey == "" {
+		c.LangfuseSecretKey = os.Getenv("LANGFUSE_SECRET_KEY")
+	}
+}
+
 // NoOpMiddleware a no-op plugin implementation.
 type NoOpMiddleware struct {
 	next http.Handler
@@ -117,6 +131,7 @@ func New(ctx context.Context, next http.Handler, config *Config, name string) (h
 		logger.Printf("log2fuse middleware config: %+v\n", config)
 	}
 
+	config.GetLangfuseFromEnv()
 	if len(config.LangfuseHost) == 0 || len(config.LangfusePublicKey) == 0 || len(config.LangfuseSecretKey) == 0 {
 		logger.Printf("langfuse host, public key, or secret key is not set, skipping langfuse logging")
 
