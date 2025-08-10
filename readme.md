@@ -98,7 +98,7 @@ The source code of the plugin should be organized as follows:
 
 experimental:
   localPlugins:
-    example:
+    log2fuse:
       moduleName: github.com/peace0phmind/log2fuse
 ```
 
@@ -126,7 +126,7 @@ http:
   middlewares:
     my-plugin:
       plugin:
-        example:
+        log2fuse:
           headers:
             Foo: Bar
 ```

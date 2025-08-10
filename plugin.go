@@ -12,6 +12,8 @@ import (
 	"net/http"
 	"os"
 	"strings"
+
+	"github.com/peace0phmind/log2fuse/langfuse"
 )
 
 // Config the plugin configuration.
@@ -27,6 +29,7 @@ type Config struct {
 	HeaderRedacts      []string `json:"headerRedacts,omitempty"`
 	RequestBodyRedact  string   `json:"requestBodyRedact,omitempty"`
 	ResponseBodyRedact string   `json:"responseBodyRedact,omitempty"`
+	LangfuseHost       string   `json:"langfuseHost,omitempty"`
 	LangfusePublicKey  string   `json:"langfusePublicKey,omitempty"`
 	LangfuseSecretKey  string   `json:"langfuseSecretKey,omitempty"`
 }
@@ -66,6 +69,7 @@ type LogRecord struct {
 
 // LoggerMiddleware a Logger plugin.
 type LoggerMiddleware struct {
+	langfuseClient      *langfuse.Client
 	name                string
 	clock               LoggerClock
 	logger              HTTPLogger
@@ -94,6 +98,7 @@ func CreateConfig() *Config {
 		HeaderRedacts:      []string{},
 		RequestBodyRedact:  "",
 		ResponseBodyRedact: "",
+		LangfuseHost:       "",
 		LangfusePublicKey:  "",
 		LangfuseSecretKey:  "",
 	}
@@ -112,10 +117,29 @@ func New(ctx context.Context, next http.Handler, config *Config, name string) (h
 		logger.Printf("log2fuse middleware config: %+v\n", config)
 	}
 
+	if len(config.LangfuseHost) == 0 || len(config.LangfusePublicKey) == 0 || len(config.LangfuseSecretKey) == 0 {
+		logger.Printf("langfuse host, public key, or secret key is not set, skipping langfuse logging")
+
+		return &NoOpMiddleware{
+			next: next,
+		}, nil
+	}
+
+	langfuseClient := langfuse.NewClient(config.LangfuseHost, config.LangfusePublicKey, config.LangfuseSecretKey)
+
+	health, err := langfuseClient.Health(ctx)
+	if err != nil {
+		logger.Printf("langfuse health check failed, skipping langfuse logging: %v", err)
+		// 这里不返回，考虑到langfuse的启动后于插件启动
+	} else if config.Debug {
+		logger.Printf("langfuse health check: %+v", health)
+	}
+
 	return &LoggerMiddleware{
+		langfuseClient:      langfuseClient,
 		name:                config.Name,
 		clock:               createClock(ctx),
-		logger:              createHTTPLogger(ctx, config, logger),
+		logger:              createJSONHTTPLogger(ctx, config, logger),
 		bodyDecoderFactory:  createHTTPBodyDecoderFactory(logger),
 		acceptAny:           config.AcceptAny,
 		silentHeaders:       config.SilentHeaders,

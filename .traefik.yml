@@ -1,4 +1,4 @@
-displayName: HTTP Logger Plugin 2 Langfuse
+displayName: HTTP 2 Langfuse Logger Plugin
 type: middleware
 iconPath: .assets/icon.png
 

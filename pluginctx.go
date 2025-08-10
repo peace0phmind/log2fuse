@@ -72,20 +72,6 @@ func (w *FileLogWriter) Write(log string) error {
 	return err
 }
 
-// LoggerLogWriter writes logs to a Logger.
-type LoggerLogWriter struct {
-	logger *log.Logger
-}
-
-func (w *LoggerLogWriter) Write(log string) error {
-	w.logger.Print(log)
-	return nil
-}
-
-func createHTTPLogger(ctx context.Context, config *Config, logger *log.Logger) HTTPLogger {
-	return createJSONHTTPLogger(ctx, config, logger)
-}
-
 func createJSONHTTPLogger(ctx context.Context, config *Config, logger *log.Logger) *JSONHTTPLogger {
 	clock := createClock(ctx)
 	uuidGenerator := createUUIDGenerator(ctx, config)
