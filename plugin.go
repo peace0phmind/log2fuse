@@ -69,7 +69,7 @@ type LogRecord struct {
 
 // LoggerMiddleware a Logger plugin.
 type LoggerMiddleware struct {
-	langfuseClient      *langfuse.Client
+	client              *langfuse.Client
 	name                string
 	clock               LoggerClock
 	logger              HTTPLogger
@@ -125,18 +125,18 @@ func New(ctx context.Context, next http.Handler, config *Config, name string) (h
 		}, nil
 	}
 
-	langfuseClient := langfuse.NewClient(config.LangfuseHost, config.LangfusePublicKey, config.LangfuseSecretKey)
+	client := langfuse.NewClient(config.LangfuseHost, config.LangfusePublicKey, config.LangfuseSecretKey)
 
-	health, err := langfuseClient.Health(ctx)
+	health, err := client.Health(ctx)
 	if err != nil {
 		logger.Printf("langfuse health check failed, skipping langfuse logging: %v", err)
 		// 这里不返回，考虑到langfuse的启动后于插件启动
-	} else if config.Debug {
+	} else {
 		logger.Printf("langfuse health check: %+v", health)
 	}
 
 	return &LoggerMiddleware{
-		langfuseClient:      langfuseClient,
+		client:              client,
 		name:                config.Name,
 		clock:               createClock(ctx),
 		logger:              createJSONHTTPLogger(ctx, config, logger),
