@@ -40,9 +40,11 @@ func (jhl *LangfuseLogger) print(record *LogRecord) {
 		Timestamp: startTimestamp,
 		Name:      fmt.Sprintf("%s: %s %s", record.System, record.Method, record.URL),
 		Input: map[string]interface{}{
+			"url":  record.URL,
 			"body": requestBodyText,
 		},
 		Output: map[string]interface{}{
+			"statusCode":   record.StatusCode,
 			"responseBody": responseBodyText,
 		},
 		SessionID: sessionID,
