@@ -6,6 +6,8 @@ import (
 	"log"
 	"os"
 	"time"
+
+	"github.com/peace0phmind/log2fuse/langfuse"
 )
 
 type clockContextKey string
@@ -80,6 +82,12 @@ func createJSONHTTPLogger(ctx context.Context, config *Config, logger *log.Logge
 		return &JSONHTTPLogger{clock: clock, uuidGenerator: uuidGenerator, logger: logger, writer: externalLogWriter}
 	}
 	return &JSONHTTPLogger{clock: clock, uuidGenerator: uuidGenerator, logger: logger, writer: &FileLogWriter{file: os.Stdout}}
+}
+
+func createLangfuseLogger(ctx context.Context, config *Config, logger *log.Logger, client *langfuse.Client) *LangfuseLogger {
+	clock := createClock(ctx)
+	uuidGenerator := createUUIDGenerator(ctx, config)
+	return &LangfuseLogger{clock: clock, uuidGenerator: uuidGenerator, logger: logger, client: client}
 }
 
 func createUUIDGenerator(ctx context.Context, config *Config) UUIDGenerator {

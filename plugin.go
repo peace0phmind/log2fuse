@@ -154,7 +154,7 @@ func New(ctx context.Context, next http.Handler, config *Config, name string) (h
 		client:              client,
 		name:                config.Name,
 		clock:               createClock(ctx),
-		logger:              createJSONHTTPLogger(ctx, config, logger),
+		logger:              createLangfuseLogger(ctx, config, logger, client),
 		bodyDecoderFactory:  createHTTPBodyDecoderFactory(logger),
 		acceptAny:           config.AcceptAny,
 		silentHeaders:       config.SilentHeaders,
