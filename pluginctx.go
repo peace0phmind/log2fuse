@@ -87,7 +87,7 @@ func createJSONHTTPLogger(ctx context.Context, config *Config, logger *log.Logge
 func createLangfuseLogger(ctx context.Context, config *Config, logger *log.Logger, client *langfuse.Client) *LangfuseLogger {
 	clock := createClock(ctx)
 	uuidGenerator := createUUIDGenerator(ctx, config)
-	return &LangfuseLogger{clock: clock, uuidGenerator: uuidGenerator, logger: logger, client: client}
+	return NewLangfuseLogger(clock, uuidGenerator, logger, client)
 }
 
 func createUUIDGenerator(ctx context.Context, config *Config) UUIDGenerator {

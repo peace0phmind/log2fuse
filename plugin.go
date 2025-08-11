@@ -60,8 +60,8 @@ func (m *NoOpMiddleware) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 // HTTPLogger a logger strategy interface.
 type HTTPLogger interface {
-	// print Prints the HTTP log.
-	print(record *LogRecord)
+	// Print Prints the HTTP log.
+	Print(record *LogRecord)
 }
 
 // LogRecord contains the loggable data.
@@ -230,7 +230,7 @@ func (m *LoggerMiddleware) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		ResponseBodyDecoder:   responseBodyDecoder,
 	}
 
-	m.logger.print(logRecord)
+	m.logger.Print(logRecord)
 }
 
 func needToLogBody(m *LoggerMiddleware, current string, acceptAny bool) bool {

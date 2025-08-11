@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"time"
 
 	"github.com/peace0phmind/log2fuse/langfuse"
 )
@@ -16,14 +17,128 @@ type LangfuseLogger struct {
 	uuidGenerator UUIDGenerator
 	logger        *log.Logger
 	client        *langfuse.Client
+	chain         chan *LogRecord
+	ctx           context.Context
+	cancel        context.CancelFunc
+}
+
+// NewLangfuseLogger creates a new LangfuseLogger instance
+func NewLangfuseLogger(clock LoggerClock, uuidGenerator UUIDGenerator, logger *log.Logger, client *langfuse.Client) *LangfuseLogger {
+	ctx, cancel := context.WithCancel(context.Background())
+
+	jhl := &LangfuseLogger{
+		clock:         clock,
+		uuidGenerator: uuidGenerator,
+		logger:        logger,
+		client:        client,
+		chain:         make(chan *LogRecord, 1000), // 设置chain大小为1000
+		ctx:           ctx,
+		cancel:        cancel,
+	}
+
+	// 启动后台处理goroutine
+	jhl.startProcessor()
+
+	return jhl
 }
 
 // Print logs the record to langfuse and local logger
 func (jhl *LangfuseLogger) Print(record *LogRecord) {
-	jhl.print(record)
+	// 直接将记录加入chain，不进行阻塞
+	select {
+	case jhl.chain <- record:
+		// 成功加入chain
+	default:
+		// chain已满，移除最早的消息并加入新消息
+		select {
+		case <-jhl.chain: // 移除最早的消息
+			jhl.chain <- record // 加入新消息
+		default:
+			// 如果还是失败，记录错误
+			jhl.logger.Printf("Failed to add record to chain, chain is full")
+		}
+	}
 }
 
-func (jhl *LangfuseLogger) print(record *LogRecord) {
+// startProcessor starts the background processor for handling chain records
+func (jhl *LangfuseLogger) startProcessor() {
+	go func() {
+		jhl.processChain()
+	}()
+}
+
+// processChain processes records from the chain
+func (jhl *LangfuseLogger) processChain() {
+	for {
+		select {
+		case record := <-jhl.chain:
+			jhl.processRecord(record)
+		case <-jhl.ctx.Done():
+			return
+		}
+	}
+}
+
+// processRecord processes a single record with retry mechanism
+func (jhl *LangfuseLogger) processRecord(record *LogRecord) {
+	maxRetries := 3
+	retryDelay := time.Second
+
+	for attempt := 0; attempt < maxRetries; attempt++ {
+		// 检查是否已取消
+		select {
+		case <-jhl.ctx.Done():
+			return
+		default:
+		}
+
+		// 检查langfuse client状态
+		if !jhl.isClientHealthy() {
+			jhl.logger.Printf("Langfuse client is not healthy, retrying in %v", retryDelay)
+
+			select {
+			case <-time.After(retryDelay):
+			case <-jhl.ctx.Done():
+				return
+			}
+
+			retryDelay *= 2 // 指数退避
+			continue
+		}
+
+		// 尝试发送记录
+		if err := jhl.sendRecord(record); err != nil {
+			jhl.logger.Printf("Failed to send record (attempt %d/%d): %v", attempt+1, maxRetries, err)
+			if attempt < maxRetries-1 {
+				select {
+				case <-time.After(retryDelay):
+				case <-jhl.ctx.Done():
+					return
+				}
+				retryDelay *= 2
+				continue
+			}
+			// 最后一次尝试失败，记录错误
+			jhl.logger.Printf("Failed to send record after %d attempts: %v", maxRetries, err)
+		}
+		return
+	}
+}
+
+// isClientHealthy checks if the langfuse client is healthy
+func (jhl *LangfuseLogger) isClientHealthy() bool {
+	ctx, cancel := context.WithTimeout(jhl.ctx, 5*time.Second)
+	defer cancel()
+
+	health, err := jhl.client.Health(ctx)
+	if err != nil {
+		return false
+	}
+	return health.Status == "ok"
+}
+
+// sendRecord sends a single record to langfuse
+func (jhl *LangfuseLogger) sendRecord(record *LogRecord) error {
 	requestBodyText, _ := record.RequestBodyDecoder.decode(record.RequestBody)
 	responseBodyText, _ := record.ResponseBodyDecoder.decode(record.ResponseBody)
 
@@ -97,11 +212,9 @@ func (jhl *LangfuseLogger) print(record *LogRecord) {
 	}
 
 	// 发送到 langfuse
-	ctx := context.Background()
-	resp, err := jhl.client.Ingest(ctx, ingestionReq)
+	resp, err := jhl.client.Ingest(jhl.ctx, ingestionReq)
 	if err != nil {
-		jhl.logger.Printf("Failed to send to langfuse: %v", err)
-		return
+		return fmt.Errorf("failed to send to langfuse: %w", err)
 	}
 
 	// 记录发送结果
@@ -111,4 +224,17 @@ func (jhl *LangfuseLogger) print(record *LogRecord) {
 	if len(resp.Errors) > 0 {
 		jhl.logger.Printf("Failed to send %d events to langfuse: %+v", len(resp.Errors), resp.Errors)
 	}
+
+	return nil
+}
+
+// Stop stops the background processor
+func (jhl *LangfuseLogger) Stop() {
+	jhl.cancel()
+}
+
+// Close closes the logger and cleans up resources
+func (jhl *LangfuseLogger) Close() {
+	jhl.Stop()
+	close(jhl.chain)
 }
