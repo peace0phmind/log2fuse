@@ -5,6 +5,7 @@ import (
 	"context"
 	"log"
 	"os"
+	"runtime"
 	"time"
 
 	"github.com/peace0phmind/log2fuse/langfuse"
@@ -87,7 +88,14 @@ func createJSONHTTPLogger(ctx context.Context, config *Config, logger *log.Logge
 func createLangfuseLogger(ctx context.Context, config *Config, logger *log.Logger, client *langfuse.Client) *LangfuseLogger {
 	clock := createClock(ctx)
 	uuidGenerator := createUUIDGenerator(ctx, config)
-	return NewLangfuseLogger(clock, uuidGenerator, logger, client)
+	langfuseLogger := NewLangfuseLogger(clock, uuidGenerator, logger, client)
+
+	// 设置 finalizer 来清理资源
+	runtime.SetFinalizer(langfuseLogger, func(l *LangfuseLogger) {
+		l.Close()
+	})
+
+	return langfuseLogger
 }
 
 func createUUIDGenerator(ctx context.Context, config *Config) UUIDGenerator {
