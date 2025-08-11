@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"sync"
 	"time"
 
 	"github.com/peace0phmind/log2fuse/langfuse"
@@ -20,6 +21,12 @@ type LangfuseLogger struct {
 	chain         chan *LogRecord
 	ctx           context.Context
 	cancel        context.CancelFunc
+
+	// 健康状态管理
+	healthMutex sync.RWMutex
+	isHealthy   bool
+	lastError   time.Time
+	probeMode   bool
 }
 
 // NewLangfuseLogger creates a new LangfuseLogger instance
@@ -34,10 +41,14 @@ func NewLangfuseLogger(clock LoggerClock, uuidGenerator UUIDGenerator, logger *l
 		chain:         make(chan *LogRecord, 1000), // 设置chain大小为1000
 		ctx:           ctx,
 		cancel:        cancel,
+		isHealthy:     true, // 初始状态假设为健康
 	}
 
 	// 启动后台处理goroutine
 	jhl.startProcessor()
+
+	// 启动健康探测
+	jhl.StartHealthProbe()
 
 	return jhl
 }
@@ -92,23 +103,13 @@ func (jhl *LangfuseLogger) processRecord(record *LogRecord) {
 		default:
 		}
 
-		// 检查langfuse client状态
-		if !jhl.isClientHealthy() {
-			jhl.logger.Printf("Langfuse client is not healthy, retrying in %v", retryDelay)
-
-			select {
-			case <-time.After(retryDelay):
-			case <-jhl.ctx.Done():
-				return
-			}
-
-			retryDelay *= 2 // 指数退避
-			continue
-		}
-
 		// 尝试发送记录
 		if err := jhl.sendRecord(record); err != nil {
 			jhl.logger.Printf("Failed to send record (attempt %d/%d): %v", attempt+1, maxRetries, err)
+
+			// 标记为不健康状态，进入探测模式
+			jhl.markUnhealthy()
+
 			if attempt < maxRetries-1 {
 				select {
 				case <-time.After(retryDelay):
@@ -120,26 +121,88 @@ func (jhl *LangfuseLogger) processRecord(record *LogRecord) {
 			}
 			// 最后一次尝试失败，记录错误
 			jhl.logger.Printf("Failed to send record after %d attempts: %v", maxRetries, err)
+		} else {
+			// 发送成功，标记为健康状态
+			jhl.markHealthy()
+			return
 		}
-		return
 	}
 }
 
+// markUnhealthy marks the client as unhealthy and enters probe mode
+func (jhl *LangfuseLogger) markUnhealthy() {
+	jhl.healthMutex.Lock()
+	defer jhl.healthMutex.Unlock()
+
+	jhl.isHealthy = false
+	jhl.lastError = jhl.clock.Now()
+	jhl.probeMode = true
+}
+
+// markHealthy marks the client as healthy and exits probe mode
+func (jhl *LangfuseLogger) markHealthy() {
+	jhl.healthMutex.Lock()
+	defer jhl.healthMutex.Unlock()
+
+	jhl.isHealthy = true
+	jhl.probeMode = false
+}
+
 // isClientHealthy checks if the langfuse client is healthy
+// This method is now only called when in probe mode or when explicitly needed
 func (jhl *LangfuseLogger) isClientHealthy() bool {
+	jhl.healthMutex.RLock()
+	defer jhl.healthMutex.RUnlock()
+
+	// 如果当前状态是健康的，直接返回true
+	if jhl.isHealthy && !jhl.probeMode {
+		return true
+	}
+
+	// 在探测模式下，进行实际的健康检查
+	if jhl.probeMode {
+		// 检查距离上次错误是否已经过了足够的时间（避免频繁检查）
+		if time.Since(jhl.lastError) < 5*time.Second {
+			return false
+		}
+
+		// 执行实际的健康检查
+		return jhl.performHealthCheck()
+	}
+
+	return jhl.isHealthy
+}
+
+// performHealthCheck performs the actual health check against langfuse
+func (jhl *LangfuseLogger) performHealthCheck() bool {
 	ctx, cancel := context.WithTimeout(jhl.ctx, 5*time.Second)
 	defer cancel()
 
 	health, err := jhl.client.Health(ctx)
 	if err != nil {
-		jhl.logger.Printf("check client healthy: %v", err)
+		jhl.logger.Printf("Health check failed: %v", err)
 		return false
 	}
-	return health.Status == "OK"
+
+	isHealthy := health.Status == "OK"
+	if isHealthy {
+		jhl.logger.Printf("Langfuse client recovered, exiting probe mode")
+	}
+
+	return isHealthy
 }
 
 // sendRecord sends a single record to langfuse
 func (jhl *LangfuseLogger) sendRecord(record *LogRecord) error {
+	// 在探测模式下，发送前检查健康状态
+	if jhl.isInProbeMode() {
+		if !jhl.isClientHealthy() {
+			return fmt.Errorf("client is unhealthy and in probe mode")
+		}
+		// 健康检查通过，退出探测模式
+		jhl.markHealthy()
+	}
+
 	requestBodyText, _ := record.RequestBodyDecoder.decode(record.RequestBody)
 	responseBodyText, _ := record.ResponseBodyDecoder.decode(record.ResponseBody)
 
@@ -227,6 +290,38 @@ func (jhl *LangfuseLogger) sendRecord(record *LogRecord) error {
 	}
 
 	return nil
+}
+
+// isInProbeMode checks if the client is currently in probe mode
+func (jhl *LangfuseLogger) isInProbeMode() bool {
+	jhl.healthMutex.RLock()
+	defer jhl.healthMutex.RUnlock()
+	return jhl.probeMode
+}
+
+// StartHealthProbe starts a background health probe when in probe mode
+func (jhl *LangfuseLogger) StartHealthProbe() {
+	go func() {
+		ticker := time.NewTicker(10 * time.Second) // 每10秒检查一次
+		defer ticker.Stop()
+
+		for {
+			select {
+			case <-ticker.C:
+				if jhl.isInProbeMode() {
+					if jhl.isClientHealthy() {
+						jhl.logger.Printf("Health probe detected recovery, exiting probe mode")
+						break
+					}
+				} else {
+					// 不在探测模式下，继续等待
+					continue
+				}
+			case <-jhl.ctx.Done():
+				return
+			}
+		}
+	}()
 }
 
 // Stop stops the background processor
