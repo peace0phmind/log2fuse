@@ -132,9 +132,10 @@ func (jhl *LangfuseLogger) isClientHealthy() bool {
 
 	health, err := jhl.client.Health(ctx)
 	if err != nil {
+		jhl.logger.Printf("check client healthy: %v", err)
 		return false
 	}
-	return health.Status == "ok"
+	return health.Status == "OK"
 }
 
 // sendRecord sends a single record to langfuse
